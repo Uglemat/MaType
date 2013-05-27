@@ -1,6 +1,6 @@
-MaTris
+MaType
 ======
 
-A clone of Tetris made using Pygame. Licensed under the GNU GPLv3.
+Licensed under the GNU GPLv3.
 
-Run `python matris.py` to start the game.
+Run `python game.py` to start the game.
