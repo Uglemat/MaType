@@ -8,7 +8,7 @@ import kezmenu
 from scores import load_score, write_score
 from words import words
 
-WIDTH = 900
+WIDTH = 800
 HEIGHT = 600
 
 def stretch(surf, size):
@@ -34,8 +34,7 @@ class Background(object):
         self.surf = Surface(size)
 
         self.backgrounds = [
-            pg.image.load("images/bg.jpg").convert(),
-            pg.image.load("images/bg2.jpg").convert()
+            pg.image.load("images/bg.png").convert()
             ]
         random.shuffle(self.backgrounds)
 
@@ -84,8 +83,8 @@ class Game(object):
         clock = pg.time.Clock()
 
 
-        word_frequency = 3  # new word every 2nd second
-        word_speed = 20 # pixels downwards per second
+        word_frequency = .01  # new word every 2nd second
+        word_speed = 100 # pixels downwards per second
         word_timer = 0
 
         while 1:
@@ -151,7 +150,7 @@ class Game(object):
 
     def add_word(self):
         found_word = False
-        while not found_word:
+        while not found_word and len(self.possible_first_characters) > len(self.current_words):
             selected = random.choice(self.words)
             if all(not w.startswith(selected[0]) for w in self.current_words.keys()):
                 found_word = True
@@ -162,6 +161,7 @@ class Game(object):
         for i in range(2, level+4):
             w = w.union(words.get(i, {}))
         self.words = list(w)
+        self.possible_first_characters = {word[0] for word in self.words}
 
     def generate_prompt_surf(self):
         surf = Surface((WIDTH, self.prompt_height))
