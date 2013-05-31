@@ -1,7 +1,11 @@
 import pygame as pg
 from pygame import Rect, Surface
 import random
+import glob
+import re
+import json
 import string
+from collections import namedtuple
 
 import kezmenu
 
@@ -10,6 +14,9 @@ from words import words
 
 WIDTH = 800
 HEIGHT = 600
+
+def endswith_any(s, *suffixes):
+    return any(s.endswith(suffix) for suffix in suffixes)
 
 def stretch(surf, size):
     width, height = size
@@ -33,9 +40,17 @@ class Background(object):
 
         self.surf = Surface(size)
 
-        self.backgrounds = [
-            pg.image.load("images/bg.png").convert()
-            ]
+        self.backgrounds = [   ]
+
+        is_image = lambda fname: endswith_any(fname, '.jpg', '.png')
+        files = glob.glob("images/*")
+
+        bg = namedtuple("background", "image info")
+        for fname in filter(is_image, files):
+            image = pg.image.load(fname)
+            image_info = json.load(open("{}.json".format(fname)))
+            self.backgrounds.append(bg(image=image, info=image_info))
+
         random.shuffle(self.backgrounds)
 
         self.timer = 0
@@ -52,7 +67,7 @@ class Background(object):
             self.set_background()
 
     def set_background(self):
-        self.surf = stretch(self.backgrounds[self.current_bg], self.size)
+        self.surf = stretch(self.backgrounds[self.current_bg].image, self.size)
 
 
 
@@ -83,8 +98,8 @@ class Game(object):
         clock = pg.time.Clock()
 
 
-        word_frequency = .01  # new word every 2nd second
-        word_speed = 100 # pixels downwards per second
+        word_frequency = 2  # new word every 2nd second
+        word_speed = 30 # pixels downwards per second
         word_timer = 0
 
         while 1:
