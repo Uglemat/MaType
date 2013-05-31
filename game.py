@@ -72,10 +72,11 @@ class Background(object):
 
 
 class Game(object):
-    def __init__(self):
+    def __init__(self, size):
         pg.key.set_repeat(250, 30)
 
-        self.surf = Surface(screen.get_size())
+        self.width, self.height = self.size = size
+        self.surf = Surface(size)
 
 
         self.prompt_height = 40
@@ -124,8 +125,9 @@ class Game(object):
                     elif self.prompt_font.size(self.prompt_content + event.unicode)[0] < WIDTH:
                         self.prompt_content += event.unicode
 
-
-            self.surf.blit(self.background.surf, (0,0))
+            
+            self.surf.blit(self.background.surf, self.background.surf.get_rect(centerx=screen.get_rect().centerx,
+                                                                               centery=screen.get_rect().centery))
 
 
             for word, meta in self.current_words.items():
@@ -193,7 +195,7 @@ class Menu(object):
     def main(self, screen):
         clock = pg.time.Clock()
         menu = kezmenu.KezMenu(
-            ['Play!', lambda: Game().main(screen)],
+            ['Play!', lambda: Game(screen.get_size()).main(screen)],
             ['Quit', lambda: setattr(self, 'running', False)],
         )
         menu.position = (50, 50)
