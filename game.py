@@ -12,11 +12,24 @@ import kezmenu
 from scores import load_score, write_score
 from words import words
 
-WIDTH = 800
-HEIGHT = 600
+pg.init()
+
+
+WIDTH = 1000
+HEIGHT = 700
 
 def endswith_any(s, *suffixes):
     return any(s.endswith(suffix) for suffix in suffixes)
+
+def renderpair(text, val, font, width, spacing, textcolor=pg.Color("darkblue")):
+    text = font.render(text, True, textcolor)
+    val = font.render(str(val), True, textcolor)
+
+    surf = Surface((text.get_rect().width + width + spacing*2, text.get_rect().height + spacing*2),  pg.SRCALPHA, 32)
+
+    surf.blit(text, text.get_rect(top=spacing, left=spacing))
+    surf.blit(val, val.get_rect(top=spacing, right=width-spacing))
+    return surf
 
 def stretch(surf, size):
     width, height = size
@@ -142,6 +155,7 @@ class Game(object):
                 else:
                     self.surf.blit(self.create_word_surf(word), (meta[0], y))
 
+            self.surf.blit(self.generate_info_surf(), (0,0))
             self.surf.blit(self.generate_prompt_surf(), (0, HEIGHT-self.prompt_height))
 
             screen.blit(self.surf, (0, 0))
@@ -179,6 +193,24 @@ class Game(object):
             w = w.union(words.get(i, {}))
         self.words = list(w)
         self.possible_first_characters = {word[0] for word in self.words}
+
+    def generate_info_surf(self, font=pg.font.Font(None, 30)):
+
+        infos = map(lambda i: renderpair(i[0], i[1], font, 140, 5),
+                    [ ("Score", str(self.score)),
+                      ("Health", str(self.health)),
+                      ("Level", str(self.level))
+                      ])
+        surf = Surface((WIDTH, infos[0].get_rect().height))
+
+        surf.fill(pg.Color("orange"))
+
+        gen_centerx = lambda n: (WIDTH/len(infos)) * (1+n) - (WIDTH/len(infos)/2)
+
+        for index, infosurf in enumerate(infos):
+            surf.blit(infosurf, infosurf.get_rect(centerx=gen_centerx(index)))
+        
+        return surf
 
     def generate_prompt_surf(self):
         surf = Surface((WIDTH, self.prompt_height))
@@ -227,7 +259,6 @@ class Menu(object):
         return font.render(text, True, (255,255,255))
 
 if __name__ == '__main__':
-    pg.init()
     screen = pg.display.set_mode((WIDTH, HEIGHT))
     pg.display.set_caption("MaType")
     Menu().main(screen)
