@@ -18,17 +18,20 @@ pg.init()
 WIDTH = 1000
 HEIGHT = 700
 
+def get_font(height):
+    return pg.font.Font("resources/font/font", height)
+
 def endswith_any(s, *suffixes):
     return any(s.endswith(suffix) for suffix in suffixes)
 
-def renderpair(text, val, font, width, spacing, textcolor=pg.Color("darkblue")):
+def renderpair(text, val, font, width, textcolor=pg.Color("darkblue")):
     text = font.render(text, True, textcolor)
     val = font.render(str(val), True, textcolor)
 
-    surf = Surface((text.get_rect().width + width + spacing*2, text.get_rect().height + spacing*2),  pg.SRCALPHA, 32)
+    surf = Surface((text.get_rect().width + width, text.get_rect().height),  pg.SRCALPHA, 32)
 
-    surf.blit(text, text.get_rect(top=spacing, left=spacing))
-    surf.blit(val, val.get_rect(top=spacing, right=width-spacing))
+    surf.blit(text, (0,0))
+    surf.blit(val, val.get_rect(right=surf.get_rect().right))
     return surf
 
 def stretch(surf, size):
@@ -56,7 +59,7 @@ class Background(object):
         self.backgrounds = [   ]
 
         is_image = lambda fname: endswith_any(fname, '.jpg', '.png')
-        files = glob.glob("images/*")
+        files = glob.glob("resources/backgrounds/*")
 
         bg = namedtuple("background", "image info")
         for fname in filter(is_image, files):
@@ -91,18 +94,26 @@ class Game(object):
         self.width, self.height = self.size = size
         self.surf = Surface(size)
 
-
-        self.prompt_height = 40
-        self.prompt_font = pg.font.Font(None, self.prompt_height)
+        self.prompt_font = get_font(40)
+        self.prompt_font_height = self.prompt_font.size("Test")[1]
         self.prompt_content = ''
+
+        self.borderwidth = 3 # Used by generate_info_surf and generate_prompt_surf
+        self.bgcolor = (40, 40, 40)
+        self.bordercolor = pg.Color("orange")
+        self.color = pg.Color("white")
 
         self.current_words = dict() # Dict that looks like this: {word: [x_position, time_word_has_existed]}.
 
         self.score = 0
         self.level = 1
         self.health = 100
+        self.words_killed = 0
 
-        self.background = Background((WIDTH, HEIGHT-self.prompt_height))
+        self.background = Background((WIDTH, (HEIGHT - 
+                                              self.generate_info_surf().get_rect().height -
+                                              self.generate_prompt_surf().get_rect().height))
+                                     )
 
         self.allowed_chars = string.ascii_letters + '\x08'
 
@@ -112,17 +123,21 @@ class Game(object):
         clock = pg.time.Clock()
 
 
-        word_frequency = 2  # new word every 2nd second
-        word_speed = 30 # pixels downwards per second
+        word_frequency = 3  # new word every 2nd second
+        word_speed = 20 # pixels downwards per second
         word_timer = 0
 
-        while 1:
-            timepassed = clock.tick(45) / 1000.
+        while True:
+            timepassed = clock.tick(35) / 1000.
 
             old_wt, word_timer = word_timer, (word_timer+timepassed) % word_frequency
 
             if old_wt > word_timer:
                 self.add_word()
+
+            old_level, self.level = self.level, 1 + self.words_killed/10
+            if self.level > old_level:
+                self.compile_words(self.level)
 
                 
             for word in self.current_words:
@@ -144,19 +159,21 @@ class Game(object):
 
 
             for word, meta in self.current_words.items():
-                y = meta[1]*word_speed
+                y = int(meta[1]*word_speed)
                 if y > HEIGHT:
                     del self.current_words[word]
                     self.health -= len(word)
                 elif word == self.prompt_content.lower():
                     del self.current_words[word]
                     self.score += len(word)
+                    self.words_killed += 1
                     self.prompt_content = ''
                 else:
                     self.surf.blit(self.create_word_surf(word), (meta[0], y))
 
             self.surf.blit(self.generate_info_surf(), (0,0))
-            self.surf.blit(self.generate_prompt_surf(), (0, HEIGHT-self.prompt_height))
+            prompt_surf = self.generate_prompt_surf()
+            self.surf.blit(prompt_surf, (0, HEIGHT-prompt_surf.get_rect().height))
 
             screen.blit(self.surf, (0, 0))
             pg.display.flip()
@@ -165,7 +182,7 @@ class Game(object):
     def create_word_surf(self, word):
         w, h = size = self.prompt_font.size(word)
 
-        being_written = word.startswith(self.prompt_content.lower())
+        being_written = len(self.prompt_content) > 0 and word.startswith(self.prompt_content.lower())
         start = self.prompt_content.lower() if being_written else ''
         end = word[len(self.prompt_content):] if being_written else word
 
@@ -194,30 +211,44 @@ class Game(object):
         self.words = list(w)
         self.possible_first_characters = {word[0] for word in self.words}
 
-    def generate_info_surf(self, font=pg.font.Font(None, 30)):
+    def generate_info_surf(self, font=get_font(25)):
 
-        infos = map(lambda i: renderpair(i[0], i[1], font, 140, 5),
+
+        infos = map(lambda i: renderpair(i[0], i[1], font, 100, textcolor=self.color),
                     [ ("Score", str(self.score)),
                       ("Health", str(self.health)),
+                      ("Words", str(self.words_killed)),
                       ("Level", str(self.level))
                       ])
-        surf = Surface((WIDTH, infos[0].get_rect().height))
 
-        surf.fill(pg.Color("orange"))
+        height = infos[0].get_rect().height + self.borderwidth*2 + 10
+        surf = Surface((WIDTH, height))
 
-        gen_centerx = lambda n: (WIDTH/len(infos)) * (1+n) - (WIDTH/len(infos)/2)
+        surf.fill(self.bgcolor)
+
+        gen_borderx = lambda n: (WIDTH/len(infos)) * (1+n)
+        gen_centerx = lambda n: gen_borderx(n) - (WIDTH/len(infos)/2)
+
 
         for index, infosurf in enumerate(infos):
-            surf.blit(infosurf, infosurf.get_rect(centerx=gen_centerx(index)))
-        
+            surf.blit(infosurf, infosurf.get_rect(centerx=gen_centerx(index), centery=height/2))
+            
+            if index+1 < len(infos):
+                borderx = gen_borderx(index)
+                pg.draw.line(surf, self.bordercolor, (borderx, 0), (borderx, height), self.borderwidth)
+
+        pg.draw.rect(surf, self.bordercolor, surf.get_rect(), self.borderwidth*2)
+        # ^ borderwidth*2 since it seems like 1/2 of the rect is drawn outside of the surface
         return surf
 
     def generate_prompt_surf(self):
-        surf = Surface((WIDTH, self.prompt_height))
-        surf.fill((225,225,225))
-        color = pg.Color("black") if any([w.startswith(self.prompt_content.lower()) for w in self.current_words]) else pg.Color("red")
-        rendered = self.prompt_font.render(self.prompt_content, True, color)
-        surf.blit(rendered, rendered.get_rect(left=10, centery=self.prompt_height/2))
+        surf = Surface((WIDTH, self.prompt_font_height+self.borderwidth*2))
+        surf.fill(self.bgcolor)
+        color = self.color if any([w.startswith(self.prompt_content.lower()) 
+                                   for w in self.current_words]) else pg.Color("red")
+        rendered = self.prompt_font.render(self.prompt_content.upper(), True, color)
+        surf.blit(rendered, rendered.get_rect(left=self.borderwidth+4, centery=surf.get_rect().height/2))
+        pg.draw.rect(surf, self.bordercolor, surf.get_rect(), self.borderwidth*2)
         return surf
 
 
