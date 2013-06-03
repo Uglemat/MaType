@@ -65,26 +65,58 @@ class Background(object):
         for fname in filter(is_image, files):
             image = pg.image.load(fname)
             image_info = json.load(open("{}.json".format(fname)))
-            self.backgrounds.append(bg(image=image, info=image_info))
+            self.backgrounds.append(bg(image=stretch(image, self.size), info=image_info))
 
         random.shuffle(self.backgrounds)
 
         self.timer = 0
-        self.frequency = 30 # new background ever N seconds
+        self.frequency = 25 # new background ever N seconds
         self.current_bg = 0
 
+
+        self.fadetime = .7
+        self.fading = 0
+        self.donefading = True
+
         self.set_background()
+
 
     def update(self, timepassed):
         old_timer, self.timer  = self.timer, (self.timer+timepassed) % self.frequency
 
+        if self.fading < 0:
+            self.donefading = True
+            self.fading = 0
+        elif self.fading:
+            self.fading = self.fading-timepassed
+
         if old_timer > self.timer:
-            self.current_bg = (self.current_bg+1) % len(self.backgrounds)
+            old_bg, self.current_bg = self.current_bg, (self.current_bg+1) % len(self.backgrounds)
+            if self.current_bg != old_bg:
+                self.fading = self.fadetime
+
+        if self.fading:
+            self.set_background()
+        elif self.donefading:
+            self.donefading = False
             self.set_background()
 
     def set_background(self):
-        self.surf = stretch(self.backgrounds[self.current_bg].image, self.size)
+        if self.fading:
+            old_bg = (self.current_bg-1) % len(self.backgrounds)
+            new = self.backgrounds[self.current_bg].image
+            old = self.backgrounds[old_bg].image.copy()
+            old.set_alpha(self.fading*255/self.fadetime)
 
+
+            self.blit(new)
+            self.blit(old)
+        else:
+            self.blit(self.backgrounds[self.current_bg].image)
+
+    def blit(self, surf):
+        self.surf.blit(surf, surf.get_rect(centerx=self.surf.get_rect().centerx,
+                                           centery=self.surf.get_rect().centery))
 
 
 class Game(object):
@@ -107,13 +139,16 @@ class Game(object):
 
         self.score = 0
         self.level = 1
-        self.health = 100
+        self.health = 10
         self.words_killed = 0
 
-        self.background = Background((WIDTH, (HEIGHT - 
-                                              self.generate_info_surf().get_rect().height -
-                                              self.generate_prompt_surf().get_rect().height))
-                                     )
+        self.info_surf_height = self.generate_info_surf().get_rect().height
+        self.prompt_surf_height = self.generate_prompt_surf().get_rect().height
+
+        self.background_height = (HEIGHT - 
+                                  self.info_surf_height -
+                                  self.prompt_surf_height)
+        self.background = Background((WIDTH, self.background_height))
 
         self.allowed_chars = string.ascii_letters + '\x08'
 
@@ -128,7 +163,17 @@ class Game(object):
         word_timer = 0
 
         while True:
+            for event in pg.event.get():
+                if event.type == pg.QUIT:
+                    exit()
+                elif event.type == pg.KEYDOWN and event.unicode in self.allowed_chars: 
+                    if event.unicode == '\x08': # backspace
+                        self.prompt_content = self.prompt_content[:-1]
+                    elif self.prompt_font.size(self.prompt_content + event.unicode)[0] < WIDTH:
+                        self.prompt_content += event.unicode
+
             timepassed = clock.tick(35) / 1000.
+
 
             old_wt, word_timer = word_timer, (word_timer+timepassed) % word_frequency
 
@@ -139,30 +184,25 @@ class Game(object):
             if self.level > old_level:
                 self.compile_words(self.level)
 
+            if self.health <= 0:
+                write_score(self.score)
+                return
                 
             for word in self.current_words:
                 self.current_words[word][1] += timepassed
 
 
-            for event in pg.event.get():
-                if event.type == pg.QUIT:
-                    exit()
-                elif event.type == pg.KEYDOWN and event.unicode in self.allowed_chars: 
-                    if event.unicode == '\x08': # backspace
-                        self.prompt_content = self.prompt_content[:-1]
-                    elif self.prompt_font.size(self.prompt_content + event.unicode)[0] < WIDTH:
-                        self.prompt_content += event.unicode
-
-            
-            self.surf.blit(self.background.surf, self.background.surf.get_rect(centerx=screen.get_rect().centerx,
-                                                                               centery=screen.get_rect().centery))
+            self.background.update(timepassed)
+            self.surf.blit(self.background.surf,
+                           self.background.surf.get_rect(centerx=screen.get_rect().centerx,
+                                                         centery=self.background_height/2 + self.info_surf_height))
 
 
             for word, meta in self.current_words.items():
                 y = int(meta[1]*word_speed)
                 if y > HEIGHT:
                     del self.current_words[word]
-                    self.health -= len(word)
+                    self.health = max(0, self.health - len(word))
                 elif word == self.prompt_content.lower():
                     del self.current_words[word]
                     self.score += len(word)
@@ -271,6 +311,9 @@ class Menu(object):
         while self.running:
             events = pg.event.get()
             timepassed = clock.tick(30) / 1000.
+
+            if timepassed > 1:
+                highscoresurf = self.construct_highscoresurf()
 
             for event in events:
                 if event.type == pg.QUIT:
