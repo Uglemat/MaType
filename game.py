@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 import pygame as pg
 from pygame import Rect, Surface
 import random
@@ -5,6 +7,7 @@ import glob
 import re
 import json
 import string
+import webbrowser
 from collections import namedtuple
 
 import kezmenu
@@ -14,24 +17,25 @@ from words import words
 
 pg.init()
 
-
 WIDTH = 1000
 HEIGHT = 700
 
 def get_font(height):
-    return pg.font.Font("resources/font/font", height)
+    return pg.font.Font("resources/font/AnonymousPro-1.002.001/Anonymous Pro.ttf", height)
 
 def endswith_any(s, *suffixes):
     return any(s.endswith(suffix) for suffix in suffixes)
 
-def renderpair(text, val, font, width, textcolor=pg.Color("darkblue")):
+def renderpair(text, val, font, width, textcolor=pg.Color("darkblue"), background=False, bgcolor=(0,0,0,195)):
     text = font.render(text, True, textcolor)
     val = font.render(str(val), True, textcolor)
 
     surf = Surface((text.get_rect().width + width, text.get_rect().height),  pg.SRCALPHA, 32)
+    if background:
+        surf.fill(bgcolor)
 
-    surf.blit(text, (0,0))
-    surf.blit(val, val.get_rect(right=surf.get_rect().right))
+    surf.blit(text, (3,0))
+    surf.blit(val, val.get_rect(right=surf.get_rect().right-3))
     return surf
 
 def stretch(surf, size):
@@ -63,9 +67,10 @@ class Background(object):
 
         bg = namedtuple("background", "image info")
         for fname in filter(is_image, files):
-            image = pg.image.load(fname)
-            image_info = json.load(open("{}.json".format(fname)))
-            self.backgrounds.append(bg(image=stretch(image, self.size), info=image_info))
+            self.backgrounds.append(
+                bg(image = stretch(pg.image.load(fname).convert(), self.size),
+                   info  = json.load(open("{}.json".format(fname))))
+                )
 
         random.shuffle(self.backgrounds)
 
@@ -101,10 +106,13 @@ class Background(object):
             self.donefading = False
             self.set_background()
 
+    def get_current_bg(self):
+        return self.backgrounds[self.current_bg]
+
     def set_background(self):
         if self.fading:
             old_bg = (self.current_bg-1) % len(self.backgrounds)
-            new = self.backgrounds[self.current_bg].image
+            new = self.get_current_bg().image
             old = self.backgrounds[old_bg].image.copy()
             old.set_alpha(self.fading*255/self.fadetime)
 
@@ -112,7 +120,7 @@ class Background(object):
             self.blit(new)
             self.blit(old)
         else:
-            self.blit(self.backgrounds[self.current_bg].image)
+            self.blit(self.get_current_bg().image)
 
     def blit(self, surf):
         self.surf.blit(surf, surf.get_rect(centerx=self.surf.get_rect().centerx,
@@ -154,6 +162,14 @@ class Game(object):
 
         self.compile_words(self.level)
 
+        self.photo_info_rect = renderpair("Photo:",
+                                          self.background.get_current_bg().info["photo"],
+                                          get_font(18),
+                                          170,
+                                          textcolor=self.color,
+                                          background=True).get_rect(right=self.width-20,
+                                                                    bottom=self.height-self.prompt_surf_height-20)
+
     def main(self, screen):
         clock = pg.time.Clock()
 
@@ -171,6 +187,10 @@ class Game(object):
                         self.prompt_content = self.prompt_content[:-1]
                     elif self.prompt_font.size(self.prompt_content + event.unicode)[0] < WIDTH:
                         self.prompt_content += event.unicode
+                elif event.type == pg.MOUSEBUTTONDOWN and self.photo_info_rect.collidepoint(event.pos):
+                    source = self.background.get_current_bg().info['source']
+                    print("Attempting to open {url} in webbrowser.".format(url=source))
+                    webbrowser.open(source)
 
             timepassed = clock.tick(35) / 1000.
 
@@ -210,6 +230,15 @@ class Game(object):
                     self.prompt_content = ''
                 else:
                     self.surf.blit(self.create_word_surf(word), (meta[0], y))
+
+            self.surf.blit(renderpair("Photo:",
+                                      self.background.get_current_bg().info["photo"],
+                                      get_font(18),
+                                      170,
+                                      textcolor=(0,0,0),
+                                      background=True,
+                                      bgcolor=(25,155,215,108) if self.photo_info_rect.collidepoint(pg.mouse.get_pos()) else (255,255,215,108)),
+                           self.photo_info_rect)
 
             self.surf.blit(self.generate_info_surf(), (0,0))
             prompt_surf = self.generate_prompt_surf()
@@ -252,7 +281,6 @@ class Game(object):
         self.possible_first_characters = {word[0] for word in self.words}
 
     def generate_info_surf(self, font=get_font(25)):
-
 
         infos = map(lambda i: renderpair(i[0], i[1], font, 100, textcolor=self.color),
                     [ ("Score", str(self.score)),
@@ -333,6 +361,7 @@ class Menu(object):
         return font.render(text, True, (255,255,255))
 
 if __name__ == '__main__':
-    screen = pg.display.set_mode((WIDTH, HEIGHT))
+    screen = pg.display.set_mode((WIDTH, HEIGHT), pg.DOUBLEBUF)
+    screen.set_alpha(None)
     pg.display.set_caption("MaType")
     Menu().main(screen)
