@@ -237,7 +237,8 @@ class Game(object):
                                       170,
                                       textcolor=(0,0,0),
                                       background=True,
-                                      bgcolor=(25,155,215,108) if self.photo_info_rect.collidepoint(pg.mouse.get_pos()) else (255,255,215,108)),
+                                      bgcolor=((25,155,215,108) if self.photo_info_rect.collidepoint(pg.mouse.get_pos())
+                                               else (255,255,215,108))),
                            self.photo_info_rect)
 
             self.surf.blit(self.generate_info_surf(), (0,0))
