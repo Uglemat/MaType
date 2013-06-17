@@ -2,13 +2,15 @@ from __future__ import print_function
 
 import pygame as pg
 from pygame import Rect, Surface
+
+from collections import namedtuple
 import random
 import glob
 import re
 import json
 import string
 import webbrowser
-from collections import namedtuple
+import math
 
 import kezmenu
 
@@ -53,6 +55,16 @@ def stretch(surf, size):
         surf = pg.transform.smoothscale(surf, (int(new_imgw * yfactor), int(new_imgh * yfactor)))
         
     return surf
+
+def transform_color(color, changes, max_=255, min_=0):
+    """ Return an RGB triplet which has changed slightly from the color taken as input """
+    assert max_ < 256 and min > 0 and max_ >= min_
+    red, green, blue = color
+
+    return [random.randrange(min(max(c-changes, min_), min(c+changes, max_)-1),
+                             min(c+changes, max_))
+            for c in (red, green, blue)]
+    
 
 class Background(object):
     def __init__(self, size):
@@ -143,11 +155,15 @@ class Game(object):
         self.bordercolor = pg.Color("orange")
         self.color = pg.Color("white")
 
-        self.current_words = dict() # Dict that looks like this: {word: [x_position, time_word_has_existed]}.
+        self.current_words = dict() # Dict that looks like this: {word: [x_position, time_word_has_existed, color]}.
+        """ time_word_has_existed is used to calculate its y position and it's also put into math.cos and
+        ''' added to the x position to make the word move gently from side to side.
+        """
 
         self.score = 0
         self.level = 1
-        self.health = 10
+        self.max_health = 10
+        self.health = self.max_health
         self.words_killed = 0
 
         self.info_surf_height = self.generate_info_surf().get_rect().height
@@ -210,6 +226,7 @@ class Game(object):
                 
             for word in self.current_words:
                 self.current_words[word][1] += timepassed
+                self.current_words[word][2] = transform_color(self.current_words[word][2], 20, max_=225, min_=110)
 
 
             self.background.update(timepassed)
@@ -229,7 +246,7 @@ class Game(object):
                     self.words_killed += 1
                     self.prompt_content = ''
                 else:
-                    self.surf.blit(self.create_word_surf(word), (meta[0], y))
+                    self.surf.blit(self.create_word_surf(word, meta[2]), (meta[0] + math.cos(meta[1]*3)*8, y))
 
             self.surf.blit(renderpair("Photo:",
                                       self.background.get_current_bg().info["photo"],
@@ -249,15 +266,15 @@ class Game(object):
             pg.display.flip()
 
 
-    def create_word_surf(self, word):
+    def create_word_surf(self, word, color):
         w, h = size = self.prompt_font.size(word)
 
         being_written = len(self.prompt_content) > 0 and word.startswith(self.prompt_content.lower())
         start = self.prompt_content.lower() if being_written else ''
         end = word[len(self.prompt_content):] if being_written else word
 
-        start_surf = self.prompt_font.render(start, True, pg.Color("green"))
-        end_surf = self.prompt_font.render(end, True, pg.Color("white"))
+        start_surf = self.prompt_font.render(start, True, pg.Color("white"))
+        end_surf = self.prompt_font.render(end, True, color)
 
         together = Surface(size, pg.SRCALPHA, 32)
 
@@ -272,7 +289,7 @@ class Game(object):
             selected = random.choice(self.words)
             if all(not w.startswith(selected[0]) for w in self.current_words.keys()):
                 found_word = True
-                self.current_words[selected] = [random.randrange(0, WIDTH-self.prompt_font.size(selected)[0]), 0]
+                self.current_words[selected] = [random.randrange(0, WIDTH-self.prompt_font.size(selected)[0]), 0, (255,255,255)]
 
     def compile_words(self, level):
         w = set()
@@ -283,11 +300,11 @@ class Game(object):
 
     def generate_info_surf(self, font=get_font(25)):
 
-        infos = map(lambda i: renderpair(i[0], i[1], font, 100, textcolor=self.color),
-                    [ ("Score", str(self.score)),
-                      ("Health", str(self.health)),
-                      ("Words", str(self.words_killed)),
-                      ("Level", str(self.level))
+        infos = map(lambda i: renderpair(i[0], i[1], font, 100, textcolor=i[2]),
+                    [ ("Score", str(self.score), self.color),
+                      ("Health", str(self.health), (255, 255/self.max_health*self.health, 255/self.max_health*self.health)),
+                      ("Words", str(self.words_killed), self.color),
+                      ("Level", str(self.level), self.color)
                       ])
 
         height = infos[0].get_rect().height + self.borderwidth*2 + 10
@@ -336,13 +353,11 @@ class Menu(object):
         menu.focus_color = (40, 200, 40)
 
         highscoresurf = self.construct_highscoresurf()
+        background = self.contruct_menu_background(screen.get_size())
 
         while self.running:
             events = pg.event.get()
             timepassed = clock.tick(30) / 1000.
-
-            if timepassed > 1:
-                highscoresurf = self.construct_highscoresurf()
 
             for event in events:
                 if event.type == pg.QUIT:
@@ -350,10 +365,34 @@ class Menu(object):
 
             menu.update(events, timepassed)
 
-            screen.fill((30, 30, 90))
+            screen.blit(background, (0,0))
             screen.blit(highscoresurf, highscoresurf.get_rect(right=WIDTH-50, bottom=HEIGHT-50))
             menu.draw(screen)
             pg.display.flip()
+
+    def contruct_menu_background(self, size):
+        changes = 5
+        
+        bg = Surface(size) # Surface with horizontal lines
+        bg2 = Surface(size, pg.SRCALPHA, 32) # Surfave with vertical lines
+
+
+        red, green, blue = (100, 100, 100)
+        for y in range(HEIGHT):
+            red, green, blue = transform_color((red, green, blue), changes, max_=200, min_=30)
+            pg.draw.line(bg, (red, green, blue), (0, y), (WIDTH-1, y))
+
+        red, green, blue = (100, 100, 100)
+        for x in range(0, WIDTH):
+            print((red,green,blue))
+            red, green, blue = transform_color((red, green, blue), changes, max_=55)
+            pg.draw.line(bg2, pg.Color(red, green, blue, 100), (x, 0), (x, HEIGHT))
+
+
+        bg2.set_alpha(255/2)
+        bg.blit(bg2, (0,0)) # 50% vertical lines, 50% horizontal lines
+
+        return bg
 
     def construct_highscoresurf(self):
         font = pg.font.Font(None, 50)
