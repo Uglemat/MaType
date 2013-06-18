@@ -23,7 +23,7 @@ WIDTH = 1000
 HEIGHT = 700
 
 def get_font(height):
-    return pg.font.Font("resources/font/AnonymousPro-1.002.001/Anonymous Pro.ttf", height)
+    return pg.font.Font("resources/font/AnonymousPro-1.002.001/Anonymous Pro B.ttf", height)
 
 def endswith_any(s, *suffixes):
     return any(s.endswith(suffix) for suffix in suffixes)
@@ -56,15 +56,24 @@ def stretch(surf, size):
         
     return surf
 
+
 def transform_color(color, changes, max_=255, min_=0):
     """ Return an RGB triplet which has changed slightly from the color taken as input """
     assert max_ < 256 and min > 0 and max_ >= min_
     red, green, blue = color
 
-    return [random.randrange(min(max(c-changes, min_), min(c+changes, max_)-1),
-                             min(c+changes, max_))
-            for c in (red, green, blue)]
-    
+    result = []
+    for color in (red, green, blue):
+        highest = min(color + changes, max_)
+        lowest  = max(color - changes, min_)
+
+        if lowest >= highest: 
+            highest = lowest+1
+        
+        result.append(random.randrange(lowest, highest))
+
+    return tuple(result)
+
 
 class Background(object):
     def __init__(self, size):
@@ -134,6 +143,12 @@ class Background(object):
         else:
             self.blit(self.get_current_bg().image)
 
+    def browse(self, direction):
+        dirs = {'forward':1, 'backward':-1}
+        self.current_bg = (self.current_bg+dirs[direction]) % len(self.backgrounds)
+        self.set_background()
+        self.timer = 0
+
     def blit(self, surf):
         self.surf.blit(surf, surf.get_rect(centerx=self.surf.get_rect().centerx,
                                            centery=self.surf.get_rect().centery))
@@ -181,7 +196,7 @@ class Game(object):
         self.photo_info_rect = renderpair("Photo:",
                                           self.background.get_current_bg().info["photo"],
                                           get_font(18),
-                                          170,
+                                          250,
                                           textcolor=self.color,
                                           background=True).get_rect(right=self.width-20,
                                                                     bottom=self.height-self.prompt_surf_height-20)
@@ -194,11 +209,13 @@ class Game(object):
         word_speed = 20 # pixels downwards per second
         word_timer = 0
 
+        paused = False
+
         while True:
             for event in pg.event.get():
                 if event.type == pg.QUIT:
                     exit()
-                elif event.type == pg.KEYDOWN and event.unicode in self.allowed_chars: 
+                elif event.type == pg.KEYDOWN and event.unicode in self.allowed_chars and event.unicode != '':
                     if event.unicode == '\x08': # backspace
                         self.prompt_content = self.prompt_content[:-1]
                     elif self.prompt_font.size(self.prompt_content + event.unicode)[0] < WIDTH:
@@ -207,6 +224,22 @@ class Game(object):
                     source = self.background.get_current_bg().info['source']
                     print("Attempting to open {url} in webbrowser.".format(url=source))
                     webbrowser.open(source)
+                elif event.type == pg.KEYDOWN and event.key in (pg.K_RIGHT, pg.K_LEFT):
+                    self.background.browse({pg.K_RIGHT: 'forward', pg.K_LEFT: 'backward'}[event.key])
+                elif event.type == pg.KEYDOWN and event.key == pg.K_ESCAPE:
+                    write_score(self.score)
+                    return
+                elif event.type == pg.KEYDOWN and event.key == pg.K_RETURN:
+                    paused = not paused
+                    if paused:
+                        screen.fill((0,0,0))
+                        screen.blit(get_font(23).render("Pause (press enter to return (pardon the pun))", True, (80,80,80)),
+                                    (40,40))
+                        pg.display.flip()
+
+            if paused:
+                clock.tick(35)
+                continue
 
             timepassed = clock.tick(35) / 1000.
 
@@ -226,8 +259,9 @@ class Game(object):
                 
             for word in self.current_words:
                 self.current_words[word][1] += timepassed
-                self.current_words[word][2] = transform_color(self.current_words[word][2], 20, max_=225, min_=110)
-
+                self.current_words[word][2] = transform_color(self.current_words[word][2], 29,
+                                                              max_=240,
+                                                              min_=100)
 
             self.background.update(timepassed)
             self.surf.blit(self.background.surf,
@@ -236,7 +270,7 @@ class Game(object):
 
 
             for word, meta in self.current_words.items():
-                y = int(meta[1]*word_speed)
+                y = (meta[1]*word_speed) + abs(math.cos(meta[1]*3)*10)
                 if y > HEIGHT:
                     del self.current_words[word]
                     self.health = max(0, self.health - len(word))
@@ -251,7 +285,7 @@ class Game(object):
             self.surf.blit(renderpair("Photo:",
                                       self.background.get_current_bg().info["photo"],
                                       get_font(18),
-                                      170,
+                                      250,
                                       textcolor=(0,0,0),
                                       background=True,
                                       bgcolor=((25,155,215,108) if self.photo_info_rect.collidepoint(pg.mouse.get_pos())
@@ -267,19 +301,23 @@ class Game(object):
 
 
     def create_word_surf(self, word, color):
-        w, h = size = self.prompt_font.size(word)
+        w, h = self.prompt_font.size(word)
+        w += 8
+        size = (w, h)
 
         being_written = len(self.prompt_content) > 0 and word.startswith(self.prompt_content.lower())
         start = self.prompt_content.lower() if being_written else ''
         end = word[len(self.prompt_content):] if being_written else word
 
-        start_surf = self.prompt_font.render(start, True, pg.Color("white"))
+        start_surf = self.prompt_font.render(start, True, pg.Color("black"))
         end_surf = self.prompt_font.render(end, True, color)
 
         together = Surface(size, pg.SRCALPHA, 32)
 
-        together.blit(start_surf, (0, 0))
-        together.blit(end_surf, end_surf.get_rect(right=w))
+        together.fill((50,50,50, 190))
+
+        together.blit(start_surf, (4, 0))
+        together.blit(end_surf, end_surf.get_rect(right=w-4))
 
         return together
 
@@ -289,7 +327,8 @@ class Game(object):
             selected = random.choice(self.words)
             if all(not w.startswith(selected[0]) for w in self.current_words.keys()):
                 found_word = True
-                self.current_words[selected] = [random.randrange(0, WIDTH-self.prompt_font.size(selected)[0]), 0, (255,255,255)]
+                self.current_words[selected] = [random.randrange(0, WIDTH-self.prompt_font.size(selected)[0]), 0,
+                                                (150,150,150)]
 
     def compile_words(self, level):
         w = set()
@@ -382,9 +421,8 @@ class Menu(object):
             red, green, blue = transform_color((red, green, blue), changes, max_=200, min_=30)
             pg.draw.line(bg, (red, green, blue), (0, y), (WIDTH-1, y))
 
-        red, green, blue = (100, 100, 100)
+        red, green, blue = (10, 10, 10)
         for x in range(0, WIDTH):
-            print((red,green,blue))
             red, green, blue = transform_color((red, green, blue), changes, max_=55)
             pg.draw.line(bg2, pg.Color(red, green, blue, 100), (x, 0), (x, HEIGHT))
 
