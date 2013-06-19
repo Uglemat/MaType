@@ -398,6 +398,9 @@ class Menu(object):
             events = pg.event.get()
             timepassed = clock.tick(30) / 1000.
 
+            if timepassed > 1:
+                highscoresurf = self.construct_highscoresurf()
+
             for event in events:
                 if event.type == pg.QUIT:
                     exit()
