@@ -22,6 +22,8 @@ pg.init()
 WIDTH = 1000
 HEIGHT = 700
 
+BACKSPACE = '\x08'
+
 def get_font(height):
     return pg.font.Font("resources/font/AnonymousPro-1.002.001/Anonymous Pro B.ttf", height)
 
@@ -97,7 +99,7 @@ class Background(object):
 
         self.timer = 0
         self.frequency = 25 # new background ever N seconds
-        self.current_bg = 0
+        self.current_bg = 0 # index of the current bg in self.backgrounds
 
 
         self.fadetime = .7
@@ -156,19 +158,20 @@ class Background(object):
 
 class Game(object):
     def __init__(self, size):
-        pg.key.set_repeat(250, 30)
+        pg.key.set_repeat(250, 30) 
+        # ^ Because it's important to be able to hold down the backspace key for clearing the prompt
 
         self.width, self.height = self.size = size
         self.surf = Surface(size)
 
-        self.prompt_font = get_font(40)
+        self.prompt_font = get_font(40) # This font it also used for the dangling words, so the name is confusing
         self.prompt_font_height = self.prompt_font.size("Test")[1]
         self.prompt_content = ''
 
         self.borderwidth = 3 # Used by generate_info_surf and generate_prompt_surf
         self.bgcolor = (40, 40, 40)
         self.bordercolor = pg.Color("orange")
-        self.color = pg.Color("white")
+        self.textcolor = pg.Color("white")
 
         self.current_words = dict() # Dict that looks like this: {word: [x_position, time_word_has_existed, color]}.
         """ time_word_has_existed is used to calculate its y position and it's also put into math.cos and
@@ -189,17 +192,16 @@ class Game(object):
                                   self.prompt_surf_height)
         self.background = Background((WIDTH, self.background_height))
 
-        self.allowed_chars = string.ascii_letters + '\x08'
+        self.allowed_chars = string.ascii_letters + BACKSPACE
 
         self.compile_words(self.level)
 
         self.photo_info_rect = renderpair("Photo:",
-                                          self.background.get_current_bg().info["photo"],
+                                          """Blabla whatever, this invocation of renderpair is only made to
+                                             measure the size of the resulting surface""",
                                           get_font(18),
-                                          250,
-                                          textcolor=self.color,
-                                          background=True).get_rect(right=self.width-20,
-                                                                    bottom=self.height-self.prompt_surf_height-20)
+                                          250).get_rect(right=self.width-20,
+                                                        bottom=self.height-self.prompt_surf_height-20)
 
     def main(self, screen):
         clock = pg.time.Clock()
@@ -216,9 +218,10 @@ class Game(object):
                 if event.type == pg.QUIT:
                     exit()
                 elif event.type == pg.KEYDOWN and event.unicode in self.allowed_chars and event.unicode != '':
-                    if event.unicode == '\x08': # backspace
+                    if event.unicode == BACKSPACE:
                         self.prompt_content = self.prompt_content[:-1]
                     elif self.prompt_font.size(self.prompt_content + event.unicode)[0] < WIDTH:
+                        # ^ Ensuring the content of the prompt stays approximately within the boundraries of the screen
                         self.prompt_content += event.unicode
                 elif event.type == pg.MOUSEBUTTONDOWN and self.photo_info_rect.collidepoint(event.pos):
                     source = self.background.get_current_bg().info['source']
@@ -233,7 +236,8 @@ class Game(object):
                     paused = not paused
                     if paused:
                         screen.fill((0,0,0))
-                        screen.blit(get_font(23).render("Pause (press enter to return (pardon the pun))", True, (80,80,80)),
+                        screen.blit(get_font(23).render("Pause (press enter to return (pardon the pun))", 
+                                                        True, (80,80,80)),
                                     (40,40))
                         pg.display.flip()
 
@@ -270,10 +274,17 @@ class Game(object):
 
 
             for word, meta in self.current_words.items():
+                """ math.cos is used to make the words move softly and delicately like
+                ''' a leaf traveling in the wind an autum..... no. I don't feel very well, I feel like..
+                ''' like I'm not me anymore, HELP ME PLEASE, IF YOU'RE OUT THERE
+                '''
+                ''' The multipliers on the result are pretty arbitrary, just to make the words move at the
+                ''' right speed.
+                """
                 y = (meta[1]*word_speed) + abs(math.cos(meta[1]*3)*10)
                 if y > HEIGHT:
                     del self.current_words[word]
-                    self.health = max(0, self.health - len(word))
+                    self.health -= 1
                 elif word == self.prompt_content.lower():
                     del self.current_words[word]
                     self.score += len(word)
@@ -340,11 +351,11 @@ class Game(object):
     def generate_info_surf(self, font=get_font(25)):
 
         infos = map(lambda i: renderpair(i[0], i[1], font, 100, textcolor=i[2]),
-                    [ ("Score", str(self.score), self.color),
+                    [ ("Score", str(self.score), self.textcolor),
                       ("Health", str(self.health), (255, 255/self.max_health*self.health, 255/self.max_health*self.health)),
-                      ("Words", str(self.words_killed), self.color),
-                      ("Level", str(self.level), self.color)
-                      ])
+                      ("Words", str(self.words_killed), self.textcolor),
+                      ("Level", str(self.level), self.textcolor)
+                      ]) # The color of the health will get increasingly red as the health approaches zero
 
         height = infos[0].get_rect().height + self.borderwidth*2 + 10
         surf = Surface((WIDTH, height))
@@ -369,8 +380,8 @@ class Game(object):
     def generate_prompt_surf(self):
         surf = Surface((WIDTH, self.prompt_font_height+self.borderwidth*2))
         surf.fill(self.bgcolor)
-        color = self.color if any([w.startswith(self.prompt_content.lower()) 
-                                   for w in self.current_words]) else pg.Color("red")
+        color = self.textcolor if any([w.startswith(self.prompt_content.lower()) 
+                                       for w in self.current_words]) else pg.Color("red")
         rendered = self.prompt_font.render(self.prompt_content.upper(), True, color)
         surf.blit(rendered, rendered.get_rect(left=self.borderwidth+4, centery=surf.get_rect().height/2))
         pg.draw.rect(surf, self.bordercolor, surf.get_rect(), self.borderwidth*2)
@@ -430,8 +441,8 @@ class Menu(object):
             pg.draw.line(bg2, pg.Color(red, green, blue, 100), (x, 0), (x, HEIGHT))
 
 
-        bg2.set_alpha(255/2)
-        bg.blit(bg2, (0,0)) # 50% vertical lines, 50% horizontal lines
+        bg2.set_alpha(255/2)  # 50% vertical lines, 50% horizontal lines
+        bg.blit(bg2, (0,0))
 
         return bg
 
