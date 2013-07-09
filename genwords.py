@@ -14,7 +14,7 @@ with open(dictfile) as file:
 
 random.shuffle(wordlist)
 wordlist = filter(lambda w: all(c in ascii_lowercase for c in w), wordlist)
-wordlist = wordlist[:800]
+wordlist = wordlist[:1300]
 
 for word in wordlist:
     words[len(word)].add(word)

@@ -157,9 +157,13 @@ class Background(object):
 
 
 class Game(object):
-    def __init__(self, size):
+    def __init__(self, size, difficulty=0):
         pg.key.set_repeat(250, 30) 
         # ^ Because it's important to be able to hold down the backspace key for clearing the prompt
+
+        self.difficulty = difficulty
+        # difficulty will be a number signifying difficulty.
+        # 0 is easy, 1 is medium, 3 is hard. I use this number various places to make it a little more difficult.
 
         self.width, self.height = self.size = size
         self.surf = Surface(size)
@@ -180,7 +184,7 @@ class Game(object):
 
         self.score = 0
         self.level = 1
-        self.max_health = 10
+        self.max_health = 5
         self.health = self.max_health
         self.words_killed = 0
 
@@ -207,8 +211,8 @@ class Game(object):
         clock = pg.time.Clock()
 
 
-        word_frequency = 3  # new word every 2nd second
-        word_speed = 20 # pixels downwards per second
+        word_frequency = 2.5  # new word every N second
+        word_speed = 30 + (self.difficulty*3) # pixels downwards per second
         word_timer = 0
 
         paused = False
@@ -249,18 +253,31 @@ class Game(object):
 
 
             old_wt, word_timer = word_timer, (word_timer+timepassed) % word_frequency
-
             if old_wt > word_timer:
                 self.add_word()
+
 
             old_level, self.level = self.level, 1 + self.words_killed/10
             if self.level > old_level:
                 self.compile_words(self.level)
 
+                word_frequency *= 0.99
+                """ Each level, word_frequency becomes 99 percent of itself. If word_frequency starts out at 2.5, then
+                ''' it will become around 2.065 on level 20:
+                '''     for level in range(1, 21): print("Level {:<3}= {:.3f} Seconds".format(level, 2.5 * (0.99 ** (level - 1))))
+                """
+
+                print("Word frequency:", word_frequency)
+
+
             if self.health <= 0:
                 write_score(self.score)
                 return
-                
+
+            if len(self.current_words) < 1:
+                self.add_word()
+                word_timer = 0
+
             for word in self.current_words:
                 self.current_words[word][1] += timepassed
                 self.current_words[word][2] = transform_color(self.current_words[word][2], 29,
@@ -343,7 +360,7 @@ class Game(object):
 
     def compile_words(self, level):
         w = set()
-        for i in range(2, level+4):
+        for i in range(2, level+3 + self.difficulty):
             w = w.union(words.get(i, {}))
         self.words = list(w)
         self.possible_first_characters = {word[0] for word in self.words}
@@ -351,10 +368,10 @@ class Game(object):
     def generate_info_surf(self, font=get_font(25)):
 
         infos = map(lambda i: renderpair(i[0], i[1], font, 100, textcolor=i[2]),
-                    [ ("Score", str(self.score), self.textcolor),
+                    [ ("Score",  str(self.score),  self.textcolor),
                       ("Health", str(self.health), (255, 255/self.max_health*self.health, 255/self.max_health*self.health)),
-                      ("Words", str(self.words_killed), self.textcolor),
-                      ("Level", str(self.level), self.textcolor)
+                      ("Words",  str(self.words_killed), self.textcolor),
+                      ("Level",  str(self.level),  self.textcolor)
                       ]) # The color of the health will get increasingly red as the health approaches zero
 
         height = infos[0].get_rect().height + self.borderwidth*2 + 10
@@ -394,13 +411,15 @@ class Menu(object):
     def main(self, screen):
         clock = pg.time.Clock()
         menu = kezmenu.KezMenu(
-            ['Play!', lambda: Game(screen.get_size()).main(screen)],
+            ['Play Game (easy)',   lambda: Game(screen.get_size(), difficulty=0).main(screen)],
+            ['Play Game (medium)', lambda: Game(screen.get_size(), difficulty=1).main(screen)],
+            ['Play Game (hard)',   lambda: Game(screen.get_size(), difficulty=3).main(screen)],
             ['Quit', lambda: setattr(self, 'running', False)],
         )
         menu.position = (50, 50)
         menu.enableEffect('enlarge-font-on-focus', font=None, size=60, enlarge_factor=1.2, enlarge_time=0.3)
-        menu.color = (255,255,255)
-        menu.focus_color = (40, 200, 40)
+        menu.color = (150,150,150)
+        menu.focus_color = (40, 40, 240)
 
         highscoresurf = self.construct_highscoresurf()
         background = self.contruct_menu_background(screen.get_size())
@@ -450,7 +469,7 @@ class Menu(object):
         font = pg.font.Font(None, 50)
         highscore = load_score()
         text = "Highscore: {}".format(highscore)
-        return font.render(text, True, (255,255,255))
+        return font.render(text, True, (150,150,150))
 
 if __name__ == '__main__':
     screen = pg.display.set_mode((WIDTH, HEIGHT), pg.DOUBLEBUF)
