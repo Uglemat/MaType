@@ -29,6 +29,7 @@ import json
 import string
 import webbrowser
 import math
+import os
 
 import kezmenu
 
@@ -43,7 +44,9 @@ HEIGHT = 700
 BACKSPACE = '\x08'
 
 def get_font(height):
-    return pg.font.Font("resources/font/AnonymousPro-1.002.001/Anonymous Pro B.ttf", height)
+    return pg.font.Font(os.path.join(os.path.dirname(__file__),
+                                     "resources/font/AnonymousPro-1.002.001/Anonymous Pro B.ttf"),
+                        height)
 
 def endswith_any(s, *suffixes):
     return any(s.endswith(suffix) for suffix in suffixes)
@@ -104,7 +107,7 @@ class Background(object):
         self.backgrounds = [   ]
 
         is_image = lambda fname: endswith_any(fname, '.jpg', '.png')
-        files = glob.glob("resources/backgrounds/*")
+        files = glob.glob(os.path.dirname(__file__) + "/resources/backgrounds/*")
 
         bg = namedtuple("background", "image info")
         for fname in filter(is_image, files):
