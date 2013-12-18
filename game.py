@@ -107,7 +107,7 @@ class Background(object):
         self.backgrounds = [   ]
 
         is_image = lambda fname: endswith_any(fname, '.jpg', '.png')
-        files = glob.glob(os.path.dirname(__file__) + "/resources/backgrounds/*")
+        files = glob.glob(os.path.join(os.path.dirname(__file__), "resources/backgrounds/*"))
 
         bg = namedtuple("background", "image info")
         for fname in filter(is_image, files):
