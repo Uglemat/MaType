@@ -9,4 +9,4 @@ Run `python game.py` to start the game.
 
 Demo
 ====
-![Demo](images/demo.png)
+![Demo](demo.png)
