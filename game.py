@@ -82,7 +82,7 @@ def stretch(surf, size):
 
 def transform_color(color, changes, max_=255, min_=0):
     """ Return an RGB triplet which has changed slightly from the color taken as input """
-    assert max_ < 256 and min > 0 and max_ >= min_
+    assert max_ < 256 and min_ >= 0 and max_ >= min_
     red, green, blue = color
 
     result = []
@@ -277,8 +277,7 @@ class Game(object):
             if old_wt > word_timer:
                 self.add_word()
 
-
-            old_level, self.level = self.level, 1 + self.words_killed/10
+            old_level, self.level = self.level, 1 + self.words_killed//10
             if self.level > old_level:
                 self.compile_words(self.level)
 
@@ -311,7 +310,7 @@ class Game(object):
                                                          centery=self.background_height/2 + self.info_surf_height))
 
 
-            for word, meta in self.current_words.items():
+            for word, meta in list(self.current_words.items()):
                 """ math.cos is used to make the words move softly and delicately like
                 ''' a leaf traveling in the wind an autum..... no. I don't feel very well, I feel like..
                 ''' like I'm not me anymore, HELP ME PLEASE, IF YOU'RE OUT THERE
@@ -388,12 +387,12 @@ class Game(object):
 
     def generate_info_surf(self, font=get_font(25)):
 
-        infos = map(lambda i: renderpair(i[0], i[1], font, 100, textcolor=i[2]),
-                    [ ("Score",  str(self.score),  self.textcolor),
-                      ("Health", str(self.health), (255, 255/self.max_health*self.health, 255/self.max_health*self.health)),
-                      ("Words",  str(self.words_killed), self.textcolor),
-                      ("Level",  str(self.level),  self.textcolor)
-                      ]) # The color of the health will get increasingly red as the health approaches zero
+        infos = list(map(lambda i: renderpair(i[0], i[1], font, 100, textcolor=i[2]),
+                         [ ("Score",  str(self.score),  self.textcolor),
+                           ("Health", str(self.health), (255, 255/self.max_health*self.health, 255/self.max_health*self.health)),
+                           ("Words",  str(self.words_killed), self.textcolor),
+                           ("Level",  str(self.level),  self.textcolor)
+                      ])) # The color of the health will get increasingly red as the health approaches zero
 
         height = infos[0].get_rect().height + self.borderwidth*2 + 10
         surf = Surface((WIDTH, height))
