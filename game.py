@@ -232,7 +232,7 @@ class Game(object):
         clock = pg.time.Clock()
 
 
-        word_frequency = 10  # new word every N second
+        word_frequency = 2.5  # new word every N second
         word_speed = 30 + (self.difficulty*3) # pixels downwards per second
         word_timer = 0
 
