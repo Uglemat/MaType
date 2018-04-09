@@ -232,7 +232,7 @@ class Game(object):
         clock = pg.time.Clock()
 
 
-        word_frequency = 2.5  # new word every N second
+        word_frequency = 10  # new word every N second
         word_speed = 30 + (self.difficulty*3) # pixels downwards per second
         word_timer = 0
 
@@ -322,7 +322,7 @@ class Game(object):
                 if y > HEIGHT:
                     del self.current_words[word]
                     self.health -= 1
-                elif word == self.prompt_content.lower():
+                elif word == self.prompt_content:
                     del self.current_words[word]
                     self.score += len(word)
                     self.words_killed += 1
@@ -353,8 +353,8 @@ class Game(object):
         w += 8
         size = (w, h)
 
-        being_written = len(self.prompt_content) > 0 and word.startswith(self.prompt_content.lower())
-        start = self.prompt_content.lower() if being_written else ''
+        being_written = len(self.prompt_content) > 0 and word.startswith(self.prompt_content)
+        start = self.prompt_content if being_written else ''
         end = word[len(self.prompt_content):] if being_written else word
 
         start_surf = self.prompt_font.render(start, True, pg.Color("black"))
@@ -417,9 +417,9 @@ class Game(object):
     def generate_prompt_surf(self):
         surf = Surface((WIDTH, self.prompt_font_height+self.borderwidth*2))
         surf.fill(self.bgcolor)
-        color = self.textcolor if any([w.startswith(self.prompt_content.lower()) 
+        color = self.textcolor if any([w.startswith(self.prompt_content) 
                                        for w in self.current_words]) else pg.Color("red")
-        rendered = self.prompt_font.render(self.prompt_content.upper(), True, color)
+        rendered = self.prompt_font.render(self.prompt_content, True, color)
         surf.blit(rendered, rendered.get_rect(left=self.borderwidth+4, centery=surf.get_rect().height/2))
         pg.draw.rect(surf, self.bordercolor, surf.get_rect(), self.borderwidth*2)
         return surf
