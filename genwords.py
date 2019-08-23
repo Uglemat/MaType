@@ -13,7 +13,7 @@ with open(dictfile) as file:
     wordlist = [w for w in file.read().split()]
 
 random.shuffle(wordlist)
-wordlist = filter(lambda w: all(c in printable for c in w), wordlist)
+wordlist = list(filter(lambda w: all(c in printable for c in w), wordlist))
 wordlist = wordlist[:1300]
 
 for word in wordlist:
